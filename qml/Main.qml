@@ -22,6 +22,11 @@ Window {
     property int winheight : Screen.height/3
     property int collapsedWidth:8
 
+    Component.onCompleted: {
+        root.expandedWidth = settingsModel.expandedWidth
+        root.winheight = settingsModel.winHeight
+    }
+
     SystemPalette { id: systemPalette; colorGroup: SystemPalette.Active }
 
     HoverHandler {
@@ -71,6 +76,7 @@ Window {
             interactive: false
             clip: true
 
+            // Tasks
             Item {
                 Column {
                     anchors.fill: parent
@@ -91,7 +97,8 @@ Window {
                             text: "+"
                             enabled: input.text.length > 0
                             onClicked: {
-                                tasksModel.append({ text: input.text, done: false })
+                                tasksModel.addTask(input.text)
+                                tasksModel.saveToFile("tasks.json")
                                 input.text = ""
                             }
                         }
@@ -101,35 +108,76 @@ Window {
                         id: list
                         width: parent.width
                         height: pages.height - 50
-                        model: ListModel { id: tasksModel }
+                        model: tasksModel
                         clip: true
 
-                        delegate: Row {
+                        delegate: RowLayout {
                             width: list.width
                             spacing: 8
                             CheckBox {
+                                id: checkBox
                                 checked: done
-                                onToggled: tasksModel.setProperty(index, "done", checked)
+                                onToggled: {
+                                    tasksModel.setDone(index, checked)
+                                    tasksModel.saveToFile("tasks.json")
+                                }
+                                Layout.alignment: Qt.AlignVCenter
                             }
+
                             Label {
+                                id: taskLabel
                                 text: model.text
                                 wrapMode: Text.WordWrap
-                                opacity: done ? 0.5 : 1.0
                                 font.strikeout: done
+                                opacity: done ? 0.5 : 1.0
+                                Layout.fillWidth: true
+                                Layout.alignment: Qt.AlignVCenter
+
+                                height: Math.max(paintedHeight, implicitHeight)
                             }
+
                             Button {
+                                id: deleteBtn
                                 text: "✕"
-                                onClicked: tasksModel.remove(index, 1)
+                                onClicked: {
+                                    historyModel.addTask(model.text, true)
+                                    historyModel.saveToFile("history.json")
+                                    tasksModel.removeTask(index)
+                                    tasksModel.saveToFile("tasks.json")
+                                }
+                                Layout.alignment: Qt.AlignVCenter
                             }
                         }
                     }
                 }
             }
 
+            // History
             Item {
-                Label {
-                    anchors.centerIn: parent
-                    text: "History (Coming Soon)"
+                Column {
+                    anchors.fill: parent
+                    spacing: 10
+
+                    Label {
+                        text: "Archived Tasks"
+                        font.pixelSize: 16
+                        horizontalAlignment: Text.AlignHCenter
+                    }
+
+                    ListView {
+                        width: parent.width
+                        height: pages.height - 50
+                        model: historyModel
+                        clip: true
+
+                        delegate: Label {
+                            width: parent.width
+                            text: model.text
+                            wrapMode: Text.WordWrap
+                            opacity: 0.7
+                            font.strikeout: true
+                        }
+                    }
                 }
             }
 
@@ -196,6 +244,9 @@ Window {
                             onClicked: {
                                 root.expandedWidth = parseInt(input_width.text)
                                 root.winheight = parseInt(input_heigth.text)
+                                settingsModel.expandedWidth = parseInt(input_width.text)
+                                settingsModel.winHeight = parseInt(input_heigth.text)
+                                settingsModel.saveToFile("settings.json")
                             }
                         }
                     }
