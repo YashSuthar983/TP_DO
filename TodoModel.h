@@ -29,6 +29,11 @@ public:
 
     Q_INVOKABLE void saveToFile(const QString &filePath);
     Q_INVOKABLE void loadFromFile(const QString &filePath);
+    Q_INVOKABLE void moveTask(int from, int to);
+    Q_INVOKABLE int count() const;
+
+    Qt::DropActions supportedDropActions() const override;
+    Qt::ItemFlags flags(const QModelIndex &index) const override;
 
 private:
     QList<QVariantMap> m_items;

@@ -110,42 +110,179 @@ Window {
                         height: pages.height - 50
                         model: tasksModel
                         clip: true
+                        interactive: true
+                        boundsBehavior: Flickable.StopAtBounds
 
-                        delegate: RowLayout {
+                        delegate: Rectangle {
+                            id: taskItem
                             width: list.width
-                            spacing: 8
-                            CheckBox {
-                                id: checkBox
-                                checked: done
-                                onToggled: {
-                                    tasksModel.setDone(index, checked)
-                                    tasksModel.saveToFile("tasks.json")
+                            height: rowLayout.implicitHeight
+                            color: dropArea.containsDrag ? "#d0ffd0" : (ListView.isCurrentItem ? "#f3f3f3" : "transparent")
+                            property int myIndex: index
+
+                            RowLayout {
+                                id: rowLayout
+                                anchors.fill: parent
+                                anchors.leftMargin: 25
+                                spacing: 8
+
+                                CheckBox {
+                                    id: checkBox
+                                    checked: done
+                                    onToggled: {
+                                        tasksModel.setDone(index, checked)
+                                        tasksModel.saveToFile("tasks.json")
+                                    }
+                                    Layout.alignment: Qt.AlignVCenter
                                 }
-                                Layout.alignment: Qt.AlignVCenter
+
+                                Label {
+                                    id: taskLabel
+                                    text: model.text
+                                    wrapMode: Text.WordWrap
+                                    font.strikeout: done
+                                    opacity: done ? 0.5 : 1.0
+                                    Layout.fillWidth: true
+                                    Layout.alignment: Qt.AlignVCenter
+
+                                    height: Math.max(paintedHeight, implicitHeight)
+                                }
+
+                                Column {
+                                    spacing: 2
+                                    Layout.alignment: Qt.AlignVCenter
+                                    
+                                    Button {
+                                        id: upBtn
+                                        text: "↑"
+                                        width: 30
+                                        height: 20
+                                        enabled: myIndex > 0
+                                        onClicked: {
+                                            tasksModel.moveTask(myIndex, myIndex - 1)
+                                            tasksModel.saveToFile("tasks.json")
+                                        }
+                                    }
+                                    
+                                    Button {
+                                        id: downBtn
+                                        text: "↓"
+                                        width: 30
+                                        height: 20
+                                        enabled: myIndex < tasksModel.count() - 1
+                                        onClicked: {
+                                            tasksModel.moveTask(myIndex, myIndex + 1)
+                                            tasksModel.saveToFile("tasks.json")
+                                        }
+                                    }
+                                }
+
+                                Button {
+                                    id: deleteBtn
+                                    text: "✕"
+                                    onClicked: {
+                                        historyModel.addTask(model.text, true)
+                                        historyModel.saveToFile("history.json")
+                                        tasksModel.removeTask(index)
+                                        tasksModel.saveToFile("tasks.json")
+                                    }
+                                    Layout.alignment: Qt.AlignVCenter
+                                }
                             }
 
-                            Label {
-                                id: taskLabel
-                                text: model.text
-                                wrapMode: Text.WordWrap
-                                font.strikeout: done
-                                opacity: done ? 0.5 : 1.0
-                                Layout.fillWidth: true
-                                Layout.alignment: Qt.AlignVCenter
-
-                                height: Math.max(paintedHeight, implicitHeight)
-                            }
-
-                            Button {
-                                id: deleteBtn
-                                text: "✕"
-                                onClicked: {
-                                    historyModel.addTask(model.text, true)
-                                    historyModel.saveToFile("history.json")
-                                    tasksModel.removeTask(index)
-                                    tasksModel.saveToFile("tasks.json")
+                            // drag handle
+                            Rectangle {
+                                id: dragHandle
+                                width: 20
+                                height: parent.height
+                                anchors.left: parent.left
+                                anchors.leftMargin: 2
+                                color: "transparent"
+                                
+                                Rectangle {
+                                    anchors.centerIn: parent
+                                    width: 12
+                                    height: parent.height - 10
+                                    color: "#cccccc"
+                                    radius: 2
+                                    
+                                    Column {
+                                        anchors.centerIn: parent
+                                        spacing: 2
+                                        Repeater {
+                                            model: 3
+                                            Rectangle {
+                                                width: 8
+                                                height: 2
+                                                color: "#888888"
+                                                radius: 1
+                                            }
+                                        }
+                                    }
                                 }
-                                Layout.alignment: Qt.AlignVCenter
+                                
+                                property int dragIndex: myIndex
+                                
+                                MouseArea {
+                                    id: dragMouseArea
+                                    anchors.fill: parent
+                                    drag.target: dragProxy
+                                    
+                                    onPressed: {
+                                        taskItem.z = 10
+                                        taskItem.opacity = 0.8
+                                        dragProxy.Drag.start()
+                                    }
+                                    
+                                    onReleased: {
+                                        taskItem.z = 0
+                                        taskItem.opacity = 1.0
+                                        dragProxy.Drag.drop()
+                                        // Reset proxy position
+                                        dragProxy.x = dragHandle.x
+                                        dragProxy.y = dragHandle.y
+                                    }
+                                }
+                            }
+                            
+                            // Invisible drag proxy that moves with mouse
+                            Rectangle {
+                                id: dragProxy
+                                width: 20
+                                height: 20
+                                color: "blue"
+                                opacity: 0.3
+                                visible: dragMouseArea.drag.active
+                                
+                                Drag.active: dragMouseArea.drag.active
+                                Drag.source: dragHandle
+                                Drag.keys: ["taskitem"]
+                                Drag.hotSpot.x: width / 2
+                                Drag.hotSpot.y: height / 2
+                            }
+                            
+                            DropArea {
+                                id: dropArea
+                                anchors.fill: parent
+                                keys: ["taskitem"]
+                                
+                                onEntered: {
+                                    console.log("Drag entered item", myIndex)
+                                }
+                                
+                                onExited: {
+                                    console.log("Drag exited item", myIndex)
+                                }
+                                
+                                onDropped: {
+                                    var fromIndex = drag.source.dragIndex
+                                    var toIndex = myIndex
+                                    console.log("DROPPED: Moving from", fromIndex, "to", toIndex)
+                                    if (fromIndex !== toIndex && fromIndex !== undefined) {
+                                        tasksModel.moveTask(fromIndex, toIndex)
+                                        tasksModel.saveToFile("tasks.json")
+                                    }
+                                }
                             }
                         }
                     }
